@@ -1,0 +1,5 @@
+.venv/
+.env
+static/
+login_activity.log
+__pycache__/
