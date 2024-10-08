@@ -1,12 +1,19 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
 from app.crud.order_crud import create_order_logic, retrieve_order_history
-from app.schemas.orderschema import OrderCreate, OrderResponse, OrderItem, DeliveryAddress, SellerInfo
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from app.schemas.orderschema import OrderCreate, OrderResponse, OrderItem, DeliveryAddress, SellerInfo, ChargeResponse
 from app.dependencies import get_current_user
 from app.models.users import Buyer
 from typing import List
 from app.utils.invoice import send_sms_notification, send_email_with_invoice, generate_invoice_pdf
+import stripe
+from app.config import settings
+from decimal import Decimal
 
 router = APIRouter()
+templates = Jinja2Templates(directory="app/templates")
+stripe.api_key= settings.STRIPE_API_KEY
 
 @router.post("/", response_model=OrderResponse)
 async def create_order(order_data: OrderCreate, background_tasks: BackgroundTasks, request: Request, current_buyer: Buyer = Depends(get_current_user)):
@@ -32,6 +39,7 @@ async def create_order(order_data: OrderCreate, background_tasks: BackgroundTask
         final_price=order.final_price,
         coupon_code=order_data.coupon_code,  
         payment_method=order_data.payment_method,
+        payment_status=order.payment_status,
         delivery_address=DeliveryAddress(
             address_line1=order.delivery_address.address_line1,
             address_line2=order.delivery_address.address_line2,
@@ -40,7 +48,12 @@ async def create_order(order_data: OrderCreate, background_tasks: BackgroundTask
             postal_code=order.delivery_address.postal_code,
             country=order.delivery_address.country
         ),
-        order_date=order.order_at
+        order_date=order.order_at,
+        charge=ChargeResponse(
+            amount=order.charge.amount if order.charge else Decimal(0.0),
+            stripe_charge_id=order.charge.stripe_charge_id if order.charge else None,
+            created_at=order.charge.created_at if order.charge else None,
+        ) if order.charge else None
     )
     
     pdf_path = generate_invoice_pdf(order_response)
@@ -63,4 +76,11 @@ async def create_order(order_data: OrderCreate, background_tasks: BackgroundTask
 async def get_order_history(current_buyer: Buyer = Depends(get_current_user)):
     order_history_response = retrieve_order_history(current_buyer)
     return order_history_response
-        
+
+# @router.get("/success/", response_class=HTMLResponse)
+# async def order_success(request: Request):
+#     return templates.TemplateResponse("success.html", {"request": request})
+
+# @router.get("/cancel/", response_class=HTMLResponse)
+# async def order_cancel(request: Request):
+#     return templates.TemplateResponse("cancel.html", {"request": request})   

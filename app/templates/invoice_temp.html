@@ -94,7 +94,7 @@
                                     </tr>
                                     <tr class="table-footer">
                                         <td colspan="2">Discount</td>
-                                        <td class="price">- {{ total_price - final_price}}</td>
+                                        <td class="price"> - {{ total_price - final_price}}</td>
                                     </tr>
                                     {% endif %}
                                     <tr class="table-footer">
@@ -103,7 +103,17 @@
                                     </tr>
                                 </tfoot>
                             </table>
-            
+                            
+                            <h2>Payment Details</h2>
+                            <p>
+                                <strong>Payment Method:</strong> {{ payment_method.value }}<br>
+                                <strong>Payment Status:</strong> {{ payment_status.value }}<br>
+                                {% if payment_status == "succeeded" %}
+                                    <strong>Charge ID:</strong> {{ charge.stripe_charge_id }}<br>
+                                    <strong>Transaction Date:</strong> {{ charge.created_at }}<br>
+                                {% endif %}
+                            </p>
+
                             <h2>Delivery Address</h2>
                             <p>
                                 {{ delivery_address.address_line1 }}<br>
