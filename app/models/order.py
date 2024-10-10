@@ -7,7 +7,8 @@ from datetime import datetime
 class Charge(EmbeddedDocument):
     amount = DecimalField(required=True, precision=2)
     created_at = DateTimeField(default=datetime.now)
-    stripe_charge_id = StringField(null=True)  
+    stripe_charge_id = StringField(null=True) 
+    stripe_checkout_id = StringField(null=True) 
     
     def __str__(self):
         return f"Charge Amount: {self.amount}"

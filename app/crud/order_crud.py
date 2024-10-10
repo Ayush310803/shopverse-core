@@ -3,7 +3,7 @@ from mongoengine import DoesNotExist
 from app.models.users import Buyer
 from app.models.products import Product
 from app.models.carts import Cart, CartItem
-from app.schemas.orderschema import OrderCreate, OrderResponse, OrderItem, DeliveryAddress, SellerInfo, PaymentMethod, PaymentStatus, ChargeResponse
+from app.schemas.orderschema import OrderCreate, OrderResponse, Order_Response, OrderItem, DeliveryAddress, SellerInfo, PaymentMethod, PaymentStatus, ChargeResponse
 from app.models.coupon import Coupon
 from datetime import datetime
 from app.models.users import Buyer
@@ -16,7 +16,7 @@ from app.config import settings
 
 stripe.api_key = settings.STRIPE_API_KEY
 
-def create_order_logic(order_data: OrderCreate, current_buyer: Buyer): 
+async def create_order_logic(order_data: OrderCreate, current_buyer: Buyer):
     buyer = current_buyer
     cart = Cart.objects.get(buyer=buyer)
 
@@ -33,9 +33,9 @@ def create_order_logic(order_data: OrderCreate, current_buyer: Buyer):
             raise HTTPException(status_code=400, detail="No primary address found")
 
     total_price = cart.get_total_price()
-
     final_price = total_price
     coupon = None
+    
     if order_data.coupon_code:
         try:
             coupon = Coupon.objects.get(code=order_data.coupon_code)
@@ -55,7 +55,7 @@ def create_order_logic(order_data: OrderCreate, current_buyer: Buyer):
 
     order = Order(
         buyer=buyer,
-        items=cart.items,  
+        items=cart.items,
         total_price=total_price,
         final_price=final_price,
         payment_method=order_data.payment_method,
@@ -63,24 +63,38 @@ def create_order_logic(order_data: OrderCreate, current_buyer: Buyer):
         coupon=coupon
     )
 
+    checkout_session = None
     if order_data.payment_method == PaymentMethod.ONLINE:
         try:
-            charge = stripe.Charge.create(
-                amount=int(final_price * 100),  
-                currency='inr',
-                description=f"Charge for order ID: {str(order.id)}",
-                source=order_data.stripe_token,  
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": "inr",
+                            "product_data": {
+                                "name": "Your Product Name", 
+                            },
+                            "unit_amount": int(final_price * 100),  
+                        },
+                        "quantity": 1,
+                    },
+                ],
+                mode="payment",
+                success_url=f"{settings.URL}/payment-success?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{settings.URL}/payment-cancel",
             )
-            order.payment_status = PaymentStatus.SUCCEEDED
+            
             order.charge = Charge(
-                amount=final_price,
-                stripe_charge_id=charge.id
+                stripe_checkout_id=checkout_session.id if checkout_session.id else None,  
+                amount=final_price
             )
-        except stripe.error.CardError as e:
+            order.payment_status = PaymentStatus.PENDING  
+        except Exception as e:
             order.payment_status = PaymentStatus.FAILED
-            raise HTTPException(status_code=400, detail=f"Stripe Payment Failed: {e.user_message}")
+            raise HTTPException(status_code=400, detail=f"Stripe Payment Failed: {str(e)}")
     else:
-        order.payment_status = PaymentStatus.PENDING  
+        order.payment_status = PaymentStatus.PENDING
 
     order.save()
 
@@ -97,7 +111,45 @@ def create_order_logic(order_data: OrderCreate, current_buyer: Buyer):
 
     cart.clear_cart()
 
-    return order
+    order_response = Order_Response(
+        order_id=str(order.id),
+        buyer_name=current_buyer.full_name,
+        items=[
+            OrderItem(
+                product_name=item.product.name,
+                quantity=item.quantity,
+                price=item.product.price,
+                seller=SellerInfo(
+                    seller_name=item.product.seller.full_name,
+                    seller_contact=item.product.seller.phone_no,
+                    store_name=item.product.seller.store_name,
+                    store_location=item.product.seller.store_address
+                )
+            ) for item in order.items
+        ],
+        total_price=order.total_price,
+        final_price=order.final_price,
+        coupon_code=order_data.coupon_code,  
+        payment_method=order_data.payment_method,
+        payment_status=order.payment_status,
+        delivery_address=DeliveryAddress(
+            address_line1=order.delivery_address.address_line1,
+            address_line2=order.delivery_address.address_line2,
+            city=order.delivery_address.city,
+            state=order.delivery_address.state,
+            postal_code=order.delivery_address.postal_code,
+            country=order.delivery_address.country
+        ),
+        order_date=order.order_at,
+        charge=ChargeResponse(
+            amount=order.charge.amount if order.charge else Decimal(0.0),
+            stripe_charge_id=order.charge.stripe_charge_id if order.charge else None,
+            created_at=order.charge.created_at if order.charge else None,
+        ) if order.charge else None,
+        payment_url= checkout_session.url if checkout_session else None
+    )
+
+    return order_response
 
 def retrieve_order_history(current_buyer: Buyer):
     order_history = OrderHistory.objects.filter(buyer=current_buyer).all()
@@ -150,3 +202,4 @@ def retrieve_order_history(current_buyer: Buyer):
         order_history_response.append(order_response)
 
     return order_history_response
+

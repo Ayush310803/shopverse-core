@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
 from enum import Enum
 from datetime import datetime
@@ -61,4 +61,22 @@ class OrderResponse(BaseModel):
     charge: Optional[ChargeResponse] = None
 
     class Config:
+        from_attributes = True 
+
+class Order_Response(OrderResponse):
+    order_id: str  
+    buyer_name: str  
+    items: List[OrderItem]
+    total_price: Decimal 
+    final_price: Decimal  
+    coupon_code: Optional[str] = None
+    payment_method: PaymentMethod
+    payment_status: PaymentStatus
+    delivery_address: DeliveryAddress
+    order_date: datetime
+    charge: Optional[ChargeResponse] = None
+    payment_url: Optional[HttpUrl] = None 
+
+    class Config:
         from_attributes = True  
+ 

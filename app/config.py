@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     STRIPE_API_KEY: str
     PUBLISH_API_KEY: str
+    FRONTEND_URL: str 
+    URL: str
 
 
     class Config:
