@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .checkout-container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="checkout-container">
+    <h2>Checkout</h2>
+    <p>Total Amount: <strong id="total-amount"></strong></p>
+    <form id="payment-form">
+        <button id="checkout-button" class="btn btn-primary">Pay Now</button>
+    </form>
+</div>
+
+<script>
+    // Set your Stripe public key
+    const stripe = Stripe("{{ stripe_public_key }}");
+
+    document.getElementById('checkout-button').addEventListener('click', function (e) {
+        e.preventDefault();
+
+        // Create a new Checkout Session using your server-side endpoint
+        fetch(`/api/checkout/session`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ sessionId: "{{ client_secret }}" })
+        })
+        .then(function (response) {
+            return response.json();
+        })
+        .then(function (sessionId) {
+            return stripe.redirectToCheckout({ sessionId });
+        })
+        .then(function (result) {
+            if (result.error) {
+                alert(result.error.message);
+            }
+        })
+        .catch(function (error) {
+            console.error('Error:', error);
+        });
+    });
+
+    // Set the total amount (this could also be dynamic based on the order details)
+    document.getElementById('total-amount').innerText = "100.00 USD"; // Example static amount
+</script>
+
+</body>
+</html>

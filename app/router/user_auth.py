@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, oauth2_scheme
 from app.auth import create_access_token, invalidate_token
 from app.models.users import Admin
 import logging
@@ -67,7 +67,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/User_logout/")
-async def logout(current_user: UserResponse = Depends(get_current_user)):
-    invalidate_token(current_user.token)  
+async def logout(token: str = Depends(oauth2_scheme),current_user: UserResponse = Depends(get_current_user)):
+    invalidate_token(token)  
     logging.info(f"User {current_user.username} logged out at {datetime.now()}")
     return {"message": "Successfully logged out"}

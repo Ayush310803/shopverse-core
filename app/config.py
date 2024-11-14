@@ -1,19 +1,25 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    database_hostname: str
-    database_port: int
-    database_password: str
-    database_name: str
-    database_username: str
-    secret_key: str
-    algorithm: str
-    debugging: int
-    access_token_expire_minutes: int = 30
+    USERNAME: str
+    PASSWORD: str
+    ACCOUNT_SID: str
+    AUTH_TOKEN: str
+    PHONE_NO: str
+    SENDER_EMAIL: str
+    EMAIL_PASSWORD: str
+    SECRET_KEY: str
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    STRIPE_API_KEY: str
+    PUBLISH_API_KEY: str
+    FRONTEND_URL: str 
+    URL: str
+
 
     class Config:
         env_file = ".env"
-        print(env_file)
+        #print(env_file)
 
 
 settings = Settings()

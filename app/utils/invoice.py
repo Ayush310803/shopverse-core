@@ -1,16 +1,10 @@
 import os
-import pdfkit
 from app.schemas.orderschema import OrderResponse
 from jinja2 import Template
-from fastapi import BackgroundTasks
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 from twilio.rest import Client
-from fastapi import Request
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from email.mime.application import MIMEApplication
 from reportlab.lib.pagesizes import letter
@@ -35,7 +29,6 @@ def send_sms_notification(phone_number, message_body):
     return message.sid
 
 templates = Jinja2Templates(directory="app/templates")
-
 
 def add_header_footer(canvas, doc):
     width, height = letter
@@ -65,8 +58,8 @@ def generate_invoice_pdf(order_data, output_dir="static/invoices"):
     story = []
 
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name='InvoiceHeading', fontSize=24, alignment=1, leading=30, spaceAfter=20))
-    styles.add(ParagraphStyle(name='TableHeading', fontSize=16, leading=22))
+    styles.add(ParagraphStyle(name='InvoiceHeading', fontSize=24, alignment=1, leading=30, spaceAfter=20, textColor=colors.darkorange, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='TableHeading', fontSize=12, leading=22, textColor=colors.blue, fontName='Helvetica-Bold'))
 
     story.append(Paragraph("INVOICE", styles['InvoiceHeading']))
     story.append(Spacer(1, 12))
@@ -77,6 +70,7 @@ def generate_invoice_pdf(order_data, output_dir="static/invoices"):
     story.append(Spacer(1, 24))
 
     story.append(Paragraph("Items", styles['TableHeading']))
+    story.append(Spacer(1, 3))
     table_data = [["Index", "Product Name", "Quantity", "Price", "Total_Price"]] + [
         [index + 1, item.product_name, item.quantity, f"Rs{item.price}", f"Rs{item.price * item.quantity}"]
         for index, item in enumerate(order_data.items)
@@ -106,6 +100,7 @@ def generate_invoice_pdf(order_data, output_dir="static/invoices"):
     story.append(Spacer(1, 24))
 
     story.append(Paragraph("Vendor Details", styles['TableHeading']))
+    story.append(Spacer(1, 3))
     vendor_data = {}
     for index, item in enumerate(order_data.items):
         vendor_name = item.seller.seller_name
@@ -144,7 +139,16 @@ def generate_invoice_pdf(order_data, output_dir="static/invoices"):
         ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
     ]))
     story.append(vendor_table)
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 24))
+
+    story.append(Paragraph("Payment Detail", styles['TableHeading']))
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(f"Payment Method: {order_data.payment_method.value}", styles['Normal']))
+    story.append(Paragraph(f"Payment Status: {order_data.payment_status.value}", styles['Normal']))
+    if order_data.payment_status == "succeeded":
+        story.append(Paragraph(f"Charge ID: {order_data.charge.stripe_charge_id}", styles['Normal']))
+        story.append(Paragraph(f"Order Date: {order_data.charge.created_at}", styles['Normal']))
+    story.append(Spacer(1, 24))
 
     address_table_data = [
         [
@@ -183,13 +187,16 @@ def send_email_with_invoice(to_email, subject, order_data: OrderResponse, attach
     html_content = template.render(
         order_id=order_data.order_id,
         buyer_name=order_data.buyer_name,
+        payment_method=order_data.payment_method,
+        payment_status=order_data.payment_status,
         order_date=order_data.order_date,
         items=order_data.items,
         total_price=order_data.total_price,
         delivery_address=order_data.delivery_address,
         coupon_code=order_data.coupon_code if hasattr(order_data, 'coupon_code') else None,
         discount_price=order_data.discount_price if hasattr(order_data, 'discount_price') else 0,
-        final_price=order_data.final_price if hasattr(order_data, 'final_price') else order_data.total_price
+        final_price=order_data.final_price if hasattr(order_data, 'final_price') else order_data.total_price,
+        charge=order_data.charge
     )
 
     msg = MIMEMultipart('alternative')
