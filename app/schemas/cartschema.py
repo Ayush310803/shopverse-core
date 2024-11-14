@@ -3,7 +3,7 @@ from typing import Optional, List
 
 class CartItemModel(BaseModel):
     product_name: str
-    quantity: int
+    quantity: int = 1
 
 class CartItemUpdate(BaseModel):
     product_name: Optional[str]= None

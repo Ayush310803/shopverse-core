@@ -75,6 +75,8 @@ def update_cart_item(username: str, product_name: str, quantity: int):
 
     for item in cart.items:
         if item.product == product:
+            if quantity > product.stock:
+                raise HTTPException(status_code=400, detail="Not enough stock available")
             item.quantity = quantity
             break
     else:
